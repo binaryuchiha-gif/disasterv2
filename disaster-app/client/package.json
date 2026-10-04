@@ -1,0 +1,40 @@
+{
+  "name": "disaster-app-client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "React interface for the disaster management and shelter navigation platform",
+  "engines": {
+    "node": ">=20.18.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "icons": "node scripts/generate-icons.mjs"
+  },
+  "dependencies": {
+    "@turf/turf": "7.1.0",
+    "framer-motion": "11.11.17",
+    "i18next": "23.16.8",
+    "leaflet": "1.9.4",
+    "lucide-react": "0.460.0",
+    "qrcode.react": "4.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "15.1.2",
+    "react-leaflet": "4.2.1",
+    "react-router-dom": "6.28.0",
+    "recharts": "2.13.3",
+    "socket.io-client": "4.8.1",
+    "zustand": "5.0.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.15",
+    "vite": "5.4.11",
+    "vite-plugin-pwa": "0.20.5"
+  }
+}

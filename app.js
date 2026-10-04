@@ -20,7 +20,7 @@
     theme: "light",
     map: null,
     streetLayer: null,
-    darkLayer: null,
+
     satelliteLayer: null,
     usingSatellite: false,
     userMarker: null,
@@ -521,23 +521,17 @@
       L.control.zoom({ position: "bottomright" }).addTo(state.map);
       L.control.scale({ position: "bottomleft", imperial: false }).addTo(state.map);
 
-      state.streetLayer = L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-        {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-          maxZoom: 19
-        }
-      );
+      // Keyless OpenStreetMap standard tiles. Dark mode reuses the same tiles
+      // with a CSS filter applied to the map container, so there is no second
+      // tile provider to depend on.
+      var OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+      var OSM_ATTRIBUTION =
+        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
 
-      state.darkLayer = L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png",
-        {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-          maxZoom: 19
-        }
-      );
+      state.streetLayer = L.tileLayer(OSM_TILE_URL, {
+        attribution: OSM_ATTRIBUTION,
+        maxZoom: 19
+      });
 
       state.satelliteLayer = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -547,7 +541,7 @@
         }
       );
 
-      (state.theme === "dark" ? state.darkLayer : state.streetLayer).addTo(state.map);
+      setBaseLayer();
 
       state.hazardLayerGroup = L.layerGroup().addTo(state.map);
 
@@ -576,15 +570,20 @@
 
   function setBaseLayer() {
     try {
-      [state.streetLayer, state.darkLayer, state.satelliteLayer].forEach(function (layer) {
+      [state.streetLayer, state.satelliteLayer].forEach(function (layer) {
         if (layer && state.map.hasLayer(layer)) state.map.removeLayer(layer);
       });
-      var layer = state.usingSatellite
-        ? state.satelliteLayer
-        : state.theme === "dark"
-        ? state.darkLayer
-        : state.streetLayer;
+
+      var layer = state.usingSatellite ? state.satelliteLayer : state.streetLayer;
       layer.addTo(state.map);
+
+      // Dark mode recolours the street tiles through a CSS filter on the map
+      // container. Satellite imagery is never filtered.
+      var container = state.map.getContainer();
+      var wantsDark = state.theme === "dark" && !state.usingSatellite;
+      if (container) {
+        container.classList.toggle("basemap-is-dark", wantsDark);
+      }
     } catch (e) {
       /* ignore */
     }
