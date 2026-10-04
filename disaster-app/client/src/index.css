@@ -1,0 +1,193 @@
+/* The Leaflet stylesheet is imported from main.jsx so that bundler CSS
+   ordering rules are respected. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-navy-50 text-navy-900 antialiased;
+  }
+
+  .dark body {
+    @apply bg-navy-950 text-navy-50;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-navy-950;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-navy-100 bg-white shadow-card dark:border-navy-700 dark:bg-navy-800;
+  }
+
+  .card-muted {
+    @apply rounded-card border border-navy-100 bg-navy-50 dark:border-navy-700 dark:bg-navy-900;
+  }
+
+  /* Minimum 48px touch targets on every interactive control. */
+  .btn {
+    @apply inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold
+      transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-primary {
+    @apply btn bg-navy-900 text-white hover:bg-navy-800 dark:bg-blue-600 dark:hover:bg-blue-500;
+  }
+
+  .btn-secondary {
+    @apply btn border border-navy-200 bg-white text-navy-900 hover:bg-navy-50
+      dark:border-navy-600 dark:bg-navy-800 dark:text-navy-50 dark:hover:bg-navy-700;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger-600 text-white hover:bg-danger-700;
+  }
+
+  .btn-safe {
+    @apply btn bg-safe-600 text-white hover:bg-safe-700;
+  }
+
+  .btn-icon {
+    @apply inline-flex h-12 w-12 items-center justify-center rounded-xl transition-colors;
+  }
+
+  .input {
+    @apply min-h-[48px] w-full rounded-xl border border-navy-200 bg-white px-3 text-sm
+      text-navy-900 placeholder:text-navy-400
+      dark:border-navy-600 dark:bg-navy-900 dark:text-navy-50 dark:placeholder:text-navy-400;
+  }
+
+  .label {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide;
+  }
+
+  .glass-header {
+    @apply border-b border-white/10 bg-navy-900/80 text-white backdrop-blur-xl;
+  }
+
+  .skeleton {
+    @apply animate-shimmer rounded-lg;
+    background-image: linear-gradient(
+      90deg,
+      rgb(226 232 243) 25%,
+      rgb(195 206 228) 37%,
+      rgb(226 232 243) 63%
+    );
+    background-size: 400% 100%;
+  }
+
+  .dark .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      rgb(16 28 51) 25%,
+      rgb(35 49 80) 37%,
+      rgb(16 28 51) 63%
+    );
+  }
+}
+
+/* ----------------------------------------------------------- Leaflet tweaks */
+
+.leaflet-container {
+  @apply h-full w-full bg-navy-100 dark:bg-navy-900;
+  font-family: inherit;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px !important;
+}
+
+.dark .leaflet-control-attribution {
+  background: rgba(11, 18, 32, 0.8) !important;
+  color: rgb(148 166 202) !important;
+}
+
+.dark .leaflet-control-attribution a {
+  color: rgb(148 166 202) !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  @apply bg-white text-navy-900 dark:bg-navy-800 dark:text-navy-50;
+}
+
+.leaflet-popup-content-wrapper {
+  @apply rounded-xl shadow-float;
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px;
+  font-size: 13px;
+}
+
+/* Custom divIcon markers must not inherit Leaflet's default white box. */
+.marker-reset {
+  background: transparent;
+  border: 0;
+}
+
+.user-dot {
+  @apply h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.user-pulse {
+  @apply absolute inset-0 rounded-full bg-blue-500/50;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.75;
+  }
+  70% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+/* Thin scrollbars inside panels and sheets. */
+.scroll-area {
+  scrollbar-width: thin;
+}
+
+.scroll-area::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scroll-area::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-navy-200 dark:bg-navy-700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
