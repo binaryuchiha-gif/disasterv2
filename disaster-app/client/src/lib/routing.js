@@ -61,7 +61,34 @@ function normalizeRoute(route, hazards) {
     latLngs: coordinates.map(([lng, lat]) => [lat, lng]),
     distanceKm: (route?.distance ?? 0) / 1000,
     durationMin: (route?.duration ?? 0) / 60,
+    freeFlowDurationMin: (route?.duration ?? 0) / 60,
+    trafficDelayMin: 0,
+    trafficAware: false,
     steps,
+    hazardIntersections: countHazardIntersections(coordinates, hazards),
+    crossesHazard: routeEntersHazard(coordinates, hazards),
+    estimated: false
+  };
+}
+
+/** Adds hazard metrics to a route returned by the traffic service. */
+function normalizeTrafficRoute(route, hazards) {
+  const coordinates = Array.isArray(route?.coordinates) ? route.coordinates : [];
+  return {
+    coordinates,
+    latLngs: coordinates.map(([lng, lat]) => [lat, lng]),
+    distanceKm: Number(route?.distanceKm) || 0,
+    durationMin: Number(route?.durationMin) || 0,
+    freeFlowDurationMin: Number(route?.freeFlowDurationMin) || Number(route?.durationMin) || 0,
+    trafficDelayMin: Number(route?.trafficDelayMin) || 0,
+    trafficAware: true,
+    steps: Array.isArray(route?.steps)
+      ? route.steps.map((step) => ({
+          instruction: step.instruction,
+          distanceM: Number(step.distanceM) || 0,
+          durationS: 0
+        }))
+      : [],
     hazardIntersections: countHazardIntersections(coordinates, hazards),
     crossesHazard: routeEntersHazard(coordinates, hazards),
     estimated: false
@@ -84,6 +111,9 @@ export function buildEstimatedRoute(origin, destination, hazards = []) {
     latLngs: coordinates.map(([lng, lat]) => [lat, lng]),
     distanceKm,
     durationMin: (distanceKm / 24) * 60,
+    freeFlowDurationMin: (distanceKm / 24) * 60,
+    trafficDelayMin: 0,
+    trafficAware: false,
     steps: [],
     hazardIntersections: countHazardIntersections(coordinates, hazards),
     crossesHazard: routeEntersHazard(coordinates, hazards),
@@ -100,10 +130,71 @@ export function readCachedRoute() {
 }
 
 /**
- * Fetches a route and selects the safest alternative.
- * Always resolves: on failure the estimated straight-line route is returned.
+ * Selection rule shared by both route sources: fewest hazard crossings first,
+ * then the shortest traffic-adjusted travel time.
  */
-export async function planRoute(origin, destination, hazards = []) {
+function selectSafestRoute(candidates) {
+  return candidates
+    .slice()
+    .sort((a, b) => a.hazardIntersections - b.hazardIntersections || a.durationMin - b.durationMin);
+}
+
+/**
+ * Traffic-aware routing through our own server, which holds the TomTom key.
+ * Returns null when traffic routing is not available so the caller can fall
+ * back to OSRM.
+ */
+async function planTrafficRoute(origin, destination, hazards) {
+  try {
+    const response = await fetch('/api/traffic/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin, destination, maxAlternatives: 2 })
+    });
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data?.fallback || !Array.isArray(data.routes) || data.routes.length === 0) {
+      return null;
+    }
+
+    const candidates = data.routes
+      .map((route) => normalizeTrafficRoute(route, hazards))
+      .filter((route) => route.latLngs.length >= 2);
+    if (candidates.length === 0) return null;
+
+    const ordered = selectSafestRoute(candidates);
+    const chosen = ordered[0];
+
+    return {
+      ...chosen,
+      alternativesConsidered: candidates.length,
+      hazardAvoiding: candidates.length > 1 && chosen.hazardIntersections === 0,
+      source: 'tomtom',
+      googleMapsUrl: buildGoogleMapsLink(origin, destination)
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetches a route and selects the safest alternative.
+ *
+ * Traffic-aware routing is attempted first so the travel time reflects live
+ * conditions. If it is unavailable the public OSRM service is used, and if that
+ * also fails a straight-line estimate is returned. This function always
+ * resolves.
+ */
+export async function planRoute(origin, destination, hazards = [], { useTraffic = true } = {}) {
+  if (useTraffic) {
+    const trafficRoute = await planTrafficRoute(origin, destination, hazards);
+    if (trafficRoute) {
+      cacheRoute({ origin, destination, route: trafficRoute });
+      return trafficRoute;
+    }
+  }
+
   const url = `${OSRM_BASE}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson&steps=true&alternatives=true`;
 
   const controller = new AbortController();
@@ -120,16 +211,12 @@ export async function planRoute(origin, destination, hazards = []) {
     }
 
     const candidates = data.routes.map((route) => normalizeRoute(route, hazards));
-    // Prefer fewer hazard crossings, then the quicker route.
-    candidates.sort(
-      (a, b) => a.hazardIntersections - b.hazardIntersections || a.durationMin - b.durationMin
-    );
-
-    const chosen = candidates[0];
+    const chosen = selectSafestRoute(candidates)[0];
     const result = {
       ...chosen,
       alternativesConsidered: candidates.length,
       hazardAvoiding: candidates.length > 1 && chosen.hazardIntersections === 0,
+      source: 'osrm',
       googleMapsUrl: buildGoogleMapsLink(origin, destination)
     };
     cacheRoute({ origin, destination, route: result });
@@ -140,6 +227,7 @@ export async function planRoute(origin, destination, hazards = []) {
       ...fallback,
       alternativesConsidered: 0,
       hazardAvoiding: false,
+      source: 'estimated',
       googleMapsUrl: buildGoogleMapsLink(origin, destination),
       warning:
         error.name === 'AbortError'

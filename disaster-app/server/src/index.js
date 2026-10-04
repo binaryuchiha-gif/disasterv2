@@ -21,6 +21,7 @@ import checkinRoutes from './routes/checkins.js';
 import alertRoutes from './routes/alerts.js';
 import contactRoutes from './routes/contacts.js';
 import liveRoutes from './routes/live.js';
+import trafficRoutes from './routes/traffic.js';
 import analyticsRoutes from './routes/analytics.js';
 
 const PORT = Number(process.env.PORT) || 4000;
@@ -60,6 +61,7 @@ app.use('/api/checkins', checkinRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/live', liveRoutes);
+app.use('/api/traffic', trafficRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 app.use('/api', notFound);

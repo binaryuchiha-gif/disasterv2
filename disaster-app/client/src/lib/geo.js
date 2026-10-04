@@ -108,3 +108,60 @@ export function routeEntersHazard(coordinates, hazards) {
   }
   return false;
 }
+
+/** Shortest distance in metres from a point to a line segment. */
+function pointToSegmentMetres(lat, lng, aLat, aLng, bLat, bLng) {
+  // Project to a local planar frame; accurate enough over street distances.
+  const latToM = 111320;
+  const lngToM = 111320 * Math.cos((lat * Math.PI) / 180);
+
+  const px = (lng - aLng) * lngToM;
+  const py = (lat - aLat) * latToM;
+  const sx = (bLng - aLng) * lngToM;
+  const sy = (bLat - aLat) * latToM;
+
+  const lengthSquared = sx * sx + sy * sy;
+  if (lengthSquared === 0) return Math.hypot(px, py);
+
+  // Clamp the projection onto the segment.
+  const t = Math.max(0, Math.min(1, (px * sx + py * sy) / lengthSquared));
+  return Math.hypot(px - t * sx, py - t * sy);
+}
+
+/**
+ * Shortest distance in metres from a position to a route polyline.
+ * `latLngs` is an array of [lat, lng] pairs. Returns Infinity for a bad route.
+ */
+export function distanceToRouteMetres(position, latLngs) {
+  if (!position || !Array.isArray(latLngs) || latLngs.length < 2) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  let shortest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < latLngs.length - 1; i += 1) {
+    const [aLat, aLng] = latLngs[i];
+    const [bLat, bLng] = latLngs[i + 1];
+    const distance = pointToSegmentMetres(position.lat, position.lng, aLat, aLng, bLat, bLng);
+    if (distance < shortest) shortest = distance;
+  }
+  return shortest;
+}
+
+/**
+ * Finds the index of the route vertex nearest to the position, used to work
+ * out which turn instruction applies now.
+ */
+export function nearestRouteIndex(position, latLngs) {
+  if (!position || !Array.isArray(latLngs) || latLngs.length === 0) return 0;
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < latLngs.length; i += 1) {
+    const [lat, lng] = latLngs[i];
+    const distance = haversineKm(position.lat, position.lng, lat, lng);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+}

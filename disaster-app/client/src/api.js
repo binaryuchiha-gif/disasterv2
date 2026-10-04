@@ -81,15 +81,18 @@ export const api = {
   me: () => request('/auth/me', { auth: true }),
 
   getShelters: (signal) => request('/shelters', { signal }),
-  getNearestShelters: ({ lat, lng, disaster, limit = 3 }, signal) => {
+  getNearestShelters: ({ lat, lng, disaster, limit = 3, traffic = true }, signal) => {
     const params = new URLSearchParams({
       lat: String(lat),
       lng: String(lng),
-      limit: String(limit)
+      limit: String(limit),
+      traffic: traffic ? 'true' : 'false'
     });
     if (disaster) params.set('disaster', disaster);
     return request(`/shelters/nearest?${params.toString()}`, { signal });
   },
+  recordArrival: (id, people = 1) =>
+    request(`/shelters/${id}/arrive`, { method: 'POST', body: { people } }),
   createShelter: (payload) => request('/shelters', { method: 'POST', body: payload, auth: true }),
   updateShelter: (id, payload) =>
     request(`/shelters/${id}`, { method: 'PATCH', body: payload, auth: true }),
@@ -134,6 +137,11 @@ export const api = {
 
   getEarthquakes: (signal) => request('/live/earthquakes', { signal }),
   getWeather: ({ lat, lng }, signal) => request(`/live/weather?lat=${lat}&lng=${lng}`, { signal }),
+  getRainRadar: (signal) => request('/live/radar', { signal }),
+
+  getTrafficStatus: (signal) => request('/traffic/status', { signal }),
+  getTrafficIncidents: (bbox, signal) =>
+    request(`/traffic/incidents?bbox=${encodeURIComponent(bbox)}`, { signal }),
 
   getAnalytics: (signal) => request('/analytics/summary', { auth: true, signal })
 };

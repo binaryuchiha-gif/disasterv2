@@ -11,9 +11,11 @@ import {
   Utensils,
   Zap
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { availability } from '../lib/ranking.js';
 import { formatDistance, formatDuration, relativeTime } from '../lib/time.js';
+import { TrafficDelayChip } from './TrafficLayer.jsx';
 
 const FACILITY_ICONS = {
   water: Droplet,
@@ -93,7 +95,8 @@ export default function ShelterCard({
   showRecommended = false,
   showBreakdown = false,
   onNavigate,
-  onSelect
+  onSelect,
+  index = 0
 }) {
   const { t } = useTranslation();
   const state = availability(shelter);
@@ -106,7 +109,13 @@ export default function ShelterCard({
   const facilities = Array.isArray(shelter.facilities) ? shelter.facilities : [];
 
   return (
-    <article className="card p-4 transition-shadow hover:shadow-float" aria-label={shelter.name}>
+    <motion.article
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, delay: Math.min(index, 5) * 0.05, ease: 'easeOut' }}
+      className="card p-4 transition-shadow hover:shadow-float"
+      aria-label={shelter.name}
+    >
       <div className="flex items-start gap-3">
         <span
           className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`}
@@ -142,9 +151,13 @@ export default function ShelterCard({
               </span>
             )}
             {typeof shelter.etaMinutes === 'number' && (
-              <span className="inline-flex items-center gap-1">
+              <span
+                className="inline-flex items-center gap-1"
+                title={shelter.trafficAware ? t('traffic.aware') : undefined}
+              >
                 <Clock size={13} aria-hidden="true" />
                 {formatDuration(shelter.etaMinutes)}
+                {shelter.trafficAware && <span aria-hidden="true">*</span>}
               </span>
             )}
             <span className={state === 'full' || state === 'closed' ? 'font-semibold' : ''}>
@@ -155,6 +168,13 @@ export default function ShelterCard({
                 <Accessibility size={13} aria-hidden="true" />
               </span>
             )}
+          </div>
+
+          <div className="mt-1.5">
+            <TrafficDelayChip
+              delayMinutes={shelter.trafficDelayMinutes}
+              trafficAware={shelter.trafficAware}
+            />
           </div>
 
           <div className="mt-2.5">
@@ -228,6 +248,6 @@ export default function ShelterCard({
           )}
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 }

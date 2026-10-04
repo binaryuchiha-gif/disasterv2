@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
-import { getEarthquakes, getWeather } from '../services/liveFeeds.js';
+import { getEarthquakes, getRainRadar, getWeather } from '../services/liveFeeds.js';
 
 const router = Router();
 
@@ -22,6 +22,14 @@ router.get('/weather', validate(weatherQuerySchema, 'query'), async (req, res, n
   try {
     const { lat, lng } = req.validatedQuery;
     res.json(await getWeather(lat, lng));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/radar', async (req, res, next) => {
+  try {
+    res.json(await getRainRadar());
   } catch (error) {
     next(error);
   }

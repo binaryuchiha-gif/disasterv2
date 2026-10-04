@@ -46,6 +46,79 @@ export const useStore = create((set, get) => ({
   baseLayer: 'street',
   setBaseLayer: (baseLayer) => set({ baseLayer }),
 
+  /* ------------------------------------------------------------- overlays */
+  showTraffic: false,
+  showRadar: false,
+  toggleTraffic: () => {
+    const next = !get().showTraffic;
+    set({ showTraffic: next });
+    if (next) get().loadTrafficIncidents();
+  },
+  toggleRadar: () => {
+    const next = !get().showRadar;
+    set({ showRadar: next });
+    if (next && !get().radar) get().loadRadar();
+  },
+
+  trafficStatus: null,
+  trafficIncidents: [],
+  trafficLoading: false,
+  radar: null,
+
+  loadTrafficStatus: async () => {
+    try {
+      set({ trafficStatus: await api.getTrafficStatus() });
+    } catch {
+      // Treated as unconfigured, which switches the client to simulated data.
+      set({ trafficStatus: { configured: false, source: 'simulated' } });
+    }
+  },
+
+  /**
+   * Loads incidents for a bounding box around the current position.
+   * With no key configured the server returns an empty list and the map falls
+   * back to the simulated incident set.
+   */
+  loadTrafficIncidents: async (bbox) => {
+    const { position, trafficStatus } = get();
+    if (trafficStatus && !trafficStatus.configured) return;
+
+    const origin = position ?? CHENNAI;
+    // Roughly a 40 km window, which covers the demonstration area.
+    const span = 0.25;
+    const box =
+      bbox ??
+      [
+        (origin.lng - span).toFixed(4),
+        (origin.lat - span).toFixed(4),
+        (origin.lng + span).toFixed(4),
+        (origin.lat + span).toFixed(4)
+      ].join(',');
+
+    set({ trafficLoading: true });
+    try {
+      const data = await api.getTrafficIncidents(box);
+      set({ trafficIncidents: Array.isArray(data.incidents) ? data.incidents : [] });
+      if (data.fallback && data.reason) {
+        set({
+          trafficStatus: { ...(get().trafficStatus ?? {}), configured: false, source: 'simulated' }
+        });
+      }
+    } catch {
+      set({ trafficIncidents: [] });
+    } finally {
+      set({ trafficLoading: false });
+    }
+  },
+
+  loadRadar: async () => {
+    try {
+      set({ radar: await api.getRainRadar() });
+    } catch {
+      set({ radar: { available: false, warning: 'Rain radar could not be loaded.' } });
+    }
+  },
+
   /* --------------------------------------------------------------- toasts */
   toasts: [],
   pushToast: (message, variant = 'info', timeout = 4200) => {
@@ -484,6 +557,7 @@ export function initialiseApp() {
   store.loadAlerts();
   store.loadReports();
   store.loadContacts();
+  store.loadTrafficStatus();
 
   window.addEventListener('online', () => {
     useStore.getState().setOnline(true);

@@ -7,10 +7,12 @@
  */
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const RADAR_CACHE_TTL_MS = 2 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 8000;
 
 const USGS_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
+const RAINVIEWER_URL = 'https://api.rainviewer.com/public/weather-maps.json';
 
 /** Bounding box covering India and the surrounding region. */
 const REGION = { minLat: 5, maxLat: 38, minLng: 66, maxLng: 98 };
@@ -202,6 +204,77 @@ export async function getWeather(lat, lng) {
       stale: true,
       fetchedAt: null,
       warning: `Weather feed unavailable: ${error.message}`
+    };
+  }
+}
+
+/* ----------------------------------------------------------- rain radar */
+
+/**
+ * RainViewer frame index.
+ *
+ * The index is fetched server-side so it can be cached and so a change in the
+ * upstream shape is handled in one place. Tiles themselves are loaded directly
+ * by the browser from the returned host, which needs no key.
+ *
+ * Tile URL shape: {host}{path}/{size}/{z}/{x}/{y}/{colour}/{smooth}_{snow}.png
+ */
+export async function getRainRadar() {
+  const key = 'radar';
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.storedAt < RADAR_CACHE_TTL_MS) {
+    return { ...entry.data, stale: false, fetchedAt: new Date(entry.storedAt).toISOString() };
+  }
+
+  try {
+    const raw = await fetchJson(RAINVIEWER_URL);
+    const host = raw?.host ?? 'https://tilecache.rainviewer.com';
+    const past = Array.isArray(raw?.radar?.past) ? raw.radar.past : [];
+    const nowcast = Array.isArray(raw?.radar?.nowcast) ? raw.radar.nowcast : [];
+
+    const frames = [...past, ...nowcast]
+      .filter((frame) => frame && typeof frame.path === 'string')
+      .map((frame) => ({
+        time: Number(frame.time) || null,
+        path: frame.path,
+        forecast: nowcast.includes(frame)
+      }));
+
+    if (frames.length === 0) {
+      throw new Error('The radar index contained no frames');
+    }
+
+    const latest = frames[past.length > 0 ? past.length - 1 : 0];
+    const payload = {
+      available: true,
+      host,
+      frames,
+      latest,
+      // Colour scheme 2 with smoothing reads well over a dark or light basemap.
+      tileTemplate: `${host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`,
+      generated: raw?.generated ?? null
+    };
+
+    cache.set(key, { data: payload, storedAt: Date.now() });
+    return { ...payload, stale: false, fetchedAt: new Date().toISOString() };
+  } catch (error) {
+    if (entry) {
+      return {
+        ...entry.data,
+        stale: true,
+        fetchedAt: new Date(entry.storedAt).toISOString(),
+        warning: 'Showing the last known radar frame, the radar service is unreachable.'
+      };
+    }
+    return {
+      available: false,
+      host: null,
+      frames: [],
+      latest: null,
+      tileTemplate: null,
+      stale: true,
+      fetchedAt: null,
+      warning: `Rain radar unavailable: ${error.message}`
     };
   }
 }

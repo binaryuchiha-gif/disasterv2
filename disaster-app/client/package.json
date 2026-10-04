@@ -15,9 +15,11 @@
   },
   "dependencies": {
     "@turf/turf": "7.1.0",
+    "framer-motion": "11.11.17",
     "i18next": "23.16.8",
     "leaflet": "1.9.4",
     "lucide-react": "0.460.0",
+    "qrcode.react": "4.1.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-i18next": "15.1.2",

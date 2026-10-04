@@ -261,6 +261,91 @@ for (const file of codeFiles) {
 
 if (unusedProblems === 0) pass('no unused imports');
 
+/* ------------------------------------------- 3c. translation key parity */
+
+/**
+ * Extracts the three translation objects from i18n.js and compares their key
+ * sets. i18next silently falls back to English for a missing key, so drift is
+ * invisible at runtime and has to be caught here.
+ */
+function checkTranslations() {
+  const i18nPath = path.join(root, 'client/src/i18n.js');
+  if (!existsSync(i18nPath)) {
+    fail('client/src/i18n.js is missing');
+    return;
+  }
+
+  const source = readFileSync(i18nPath, 'utf8');
+  const body = source
+    .replace(/^import .*$/gm, '')
+    .replace(/i18next\s*\.use\([\s\S]*?\}\);/m, '')
+    .replace(/export function changeLanguage[\s\S]*?\n}/m, '')
+    .replace(/export default i18next;/m, '')
+    .replace(/const storedLanguage[\s\S]*?: 'en';/m, '')
+    .replace(/^export /gm, '');
+
+  let bundles;
+  try {
+    // eslint-disable-next-line no-new-func -- reads literal objects from our own source.
+    bundles = new Function(`${body}\n return { en, ta, hi, LANGUAGES };`)();
+  } catch (error) {
+    fail(`could not read the translation bundles: ${error.message}`);
+    return;
+  }
+
+  const flatten = (obj, prefix = '') => {
+    const keys = [];
+    for (const [key, value] of Object.entries(obj)) {
+      const full = prefix ? `${prefix}.${key}` : key;
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        keys.push(...flatten(value, full));
+      } else {
+        keys.push(full);
+      }
+    }
+    return keys.sort();
+  };
+
+  const enKeys = flatten(bundles.en);
+  let problems = 0;
+
+  for (const lang of ['ta', 'hi']) {
+    const keys = flatten(bundles[lang]);
+    const missing = enKeys.filter((key) => !keys.includes(key));
+    const extra = keys.filter((key) => !enKeys.includes(key));
+    if (missing.length > 0) {
+      fail(`${lang} is missing ${missing.length} key(s): ${missing.slice(0, 6).join(', ')}`);
+      problems += 1;
+    }
+    if (extra.length > 0) {
+      fail(`${lang} has ${extra.length} unexpected key(s): ${extra.slice(0, 6).join(', ')}`);
+      problems += 1;
+    }
+  }
+
+  // Every value must be a non-empty string.
+  for (const lang of ['en', 'ta', 'hi']) {
+    const walk = (obj, prefix = '') => {
+      for (const [key, value] of Object.entries(obj)) {
+        const full = prefix ? `${prefix}.${key}` : key;
+        if (value && typeof value === 'object') {
+          walk(value, full);
+        } else if (typeof value !== 'string' || value.trim().length === 0) {
+          fail(`${lang}.${full} is empty or not a string`);
+          problems += 1;
+        }
+      }
+    };
+    walk(bundles[lang]);
+  }
+
+  if (problems === 0) {
+    pass(`${enKeys.length} translation keys match across English, Tamil and Hindi`);
+  }
+}
+
+checkTranslations();
+
 /* ------------------------------------------------------ 4. emoji scanning */
 
 const EMOJI_RE =

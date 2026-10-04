@@ -2,6 +2,7 @@ import { AlertTriangle, ExternalLink, Navigation, ShieldCheck } from 'lucide-rea
 import { useTranslation } from 'react-i18next';
 import { formatDistance, formatDuration } from '../lib/time.js';
 import { SkeletonText } from './Skeleton.jsx';
+import { TrafficDelayChip } from './TrafficLayer.jsx';
 
 /** Route summary, hazard labelling and turn-by-turn list. */
 export default function RoutePanel({ route, destination, loading }) {
@@ -62,11 +63,31 @@ export default function RoutePanel({ route, destination, loading }) {
         </div>
         <div className="card-muted p-2.5">
           <dt className="text-[11px] font-semibold uppercase tracking-wide text-navy-500 dark:text-navy-300">
-            {t('route.eta')}
+            {route.trafficAware ? t('route.etaWithTraffic') : t('route.eta')}
           </dt>
           <dd className="mt-0.5 font-bold">{formatDuration(route.durationMin)}</dd>
         </div>
       </dl>
+
+      {route.trafficAware && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <TrafficDelayChip
+            delayMinutes={route.trafficDelayMin}
+            trafficAware={route.trafficAware}
+          />
+          {route.trafficDelayMin >= 0.5 ? (
+            <span className="text-[11px] text-navy-500 dark:text-navy-300">
+              {t('route.freeFlowWas', {
+                duration: formatDuration(route.freeFlowDurationMin)
+              })}
+            </span>
+          ) : (
+            <span className="text-[11px] text-navy-500 dark:text-navy-300">
+              {t('route.noDelay')}
+            </span>
+          )}
+        </div>
+      )}
 
       {route.warning && (
         <p className="mt-2 rounded-xl bg-warn-50 p-2.5 text-xs text-warn-700 dark:bg-warn-500/10 dark:text-warn-400">

@@ -15,11 +15,14 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   BellRing,
   CheckCheck,
+  FileText,
   Megaphone,
+  QrCode,
   Radio,
   Siren,
   Users,
@@ -29,6 +32,7 @@ import { useTranslation } from 'react-i18next';
 import useStore from '../store.js';
 import api from '../api.js';
 import MapView from '../components/MapView.jsx';
+import ShelterQrCard from '../components/ShelterQrCard.jsx';
 import { ChartSkeleton, KpiSkeleton, SkeletonText } from '../components/Skeleton.jsx';
 import { EmptyState, ErrorState } from '../components/LiveDataCards.jsx';
 import { DISASTER_TYPES } from '../lib/constants.js';
@@ -92,6 +96,7 @@ export default function AdminDashboard() {
   });
   const [simulateType, setSimulateType] = useState('flood');
   const [addMode, setAddMode] = useState(false);
+  const [showQrCodes, setShowQrCodes] = useState(false);
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
@@ -265,6 +270,10 @@ export default function AdminDashboard() {
           <p className="mt-1 text-sm text-navy-500 dark:text-navy-300">
             Operational overview with live updates pushed over the realtime channel.
           </p>
+          <Link to="/admin/report" className="btn-secondary mt-2 px-4">
+            <FileText size={15} aria-hidden="true" />
+            {t('admin.exportReport')}
+          </Link>
         </div>
         <span
           className={`chip ${
@@ -608,6 +617,34 @@ export default function AdminDashboard() {
           <p className="border-t border-navy-100 p-3 text-xs text-navy-500 dark:border-navy-700 dark:text-navy-300">
             Click any point on the map to place a new shelter.
           </p>
+        )}
+      </section>
+
+      {/* Arrival QR codes */}
+      <section className="card overflow-hidden">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-navy-100 p-4 dark:border-navy-700">
+          <div>
+            <h2 className="flex items-center gap-1.5 text-sm font-bold">
+              <QrCode size={15} aria-hidden="true" />
+              {t('qr.adminTitle')}
+            </h2>
+            <p className="mt-0.5 text-[11px] text-navy-400">{t('qr.adminHint')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowQrCodes((value) => !value)}
+            aria-pressed={showQrCodes}
+            className="btn-secondary px-4"
+          >
+            {showQrCodes ? t('qr.hideCodes') : t('qr.showCodes')}
+          </button>
+        </header>
+        {showQrCodes && (
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
+            {shelters.map((shelter) => (
+              <ShelterQrCard key={shelter.id} shelter={shelter} />
+            ))}
+          </div>
         )}
       </section>
 

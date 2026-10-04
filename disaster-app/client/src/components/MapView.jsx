@@ -23,6 +23,8 @@ import {
   ShelterMarkers,
   UserLocationMarker
 } from './MapMarkers.jsx';
+import { TrafficFlowLayer, TrafficIncidentLayer } from './TrafficLayer.jsx';
+import { RadarTileLayer } from './RadarLayer.jsx';
 
 /**
  * Keeps the map centred on the user while follow mode is active.
@@ -97,6 +99,12 @@ export default function MapView({
   onMapClick,
   onShelterSelect,
   resizeKey,
+  trafficEnabled = false,
+  trafficSimulated = false,
+  trafficSegments = [],
+  trafficIncidents = [],
+  radarEnabled = false,
+  radar = null,
   children
 }) {
   const { t } = useTranslation();
@@ -145,10 +153,19 @@ export default function MapView({
         <ZoomControl position="bottomright" />
         <ScaleControl position="bottomleft" metric imperial={false} />
 
+        {/* Radar sits above the basemap but below every interactive layer. */}
+        <RadarTileLayer enabled={radarEnabled} radar={radar} />
+        <TrafficFlowLayer
+          enabled={trafficEnabled}
+          simulated={trafficSimulated}
+          segments={trafficSegments}
+        />
+
         <HazardLayer hazards={hazards} />
         <ShelterMarkers shelters={shelters} onSelect={onShelterSelect} />
         <ReportMarkers reports={reports} labelFor={(type) => t(`reports.${type}`)} />
         <EarthquakeMarkers events={earthquakes} />
+        <TrafficIncidentLayer enabled={trafficEnabled} incidents={trafficIncidents} />
         <RouteLine route={route} />
         <UserLocationMarker position={position} />
 

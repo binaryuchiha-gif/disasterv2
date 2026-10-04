@@ -6,8 +6,10 @@ Everything runs locally with no cloud accounts, no paid services and no API
 keys.
 
 - Backend: Express, SQLite (better-sqlite3), Socket.IO, JWT authentication
-- Frontend: React, Vite, Tailwind CSS, Leaflet, Recharts, Zustand, i18next
-- External data: USGS earthquake feed and Open-Meteo forecast, both keyless
+- Frontend: React, Vite, Tailwind CSS, Leaflet, Recharts, Zustand, i18next,
+  Framer Motion
+- External data: USGS earthquakes, Open-Meteo forecast and RainViewer radar,
+  all keyless; TomTom traffic is optional and degrades to a simulated layer
 
 ## Prerequisites
 
@@ -58,6 +60,38 @@ without the native `better-sqlite3` binding.
 
 To start over with a clean database, delete `server/data/app.db` and run
 `npm run seed`.
+
+## Optional: live traffic
+
+Traffic works without any setup. With no key the app uses OSRM for routing and
+draws a locally generated congestion layer that is clearly labelled
+"Simulated", so nothing looks broken during a demonstration.
+
+To use live TomTom data, put a free key in `server/.env`:
+
+```
+TOMTOM_API_KEY=your_key_here
+TOMTOM_FLOW_STYLE=relative
+```
+
+Get one at <https://developer.tomtom.com>. Restart after editing.
+
+The key is read only on the server. Flow tiles are proxied through
+`/api/traffic/tile/{z}/{x}/{y}.png`, so the browser never receives it and it
+never appears in the client bundle or in network requests visible to the user.
+`server/.env` is gitignored; `server/.env.example` carries a blank placeholder.
+
+With a key configured you get:
+
+- Live incident and road closure pins with detail popups
+- Raster flow tiles coloured by congestion, with a legend
+- Traffic-aware travel times in the shelter ranking and the route panel, shown
+  as "Delay due to traffic: N min"
+- Route selection that still prefers the fewest hazard crossings first, then
+  the shortest traffic-adjusted time
+
+If the key is missing or a call fails, every traffic response carries a
+`fallback` flag and the interface switches to the simulated layer.
 
 ## Demo credentials
 
@@ -141,6 +175,58 @@ The dashboard at `/admin` requires the administrator account.
 - "Simulate disaster" publishes a critical alert, activates the matching hazard
   zones and raises the alarm tone and vibration on every connected client.
 
+**Traffic and weather overlays**
+
+- Toggleable traffic flow layer, either live TomTom raster tiles proxied
+  through the server or a deterministic simulated layer over real Chennai
+  arterial corridors, with a four-band legend covering free flow, slow, heavy
+  and blocked.
+- Incident and closure pins carrying severity, delay, affected length, the
+  from and to road names, and road numbers where supplied.
+- Toggleable RainViewer precipitation radar, keyless, with the frame timestamp
+  shown and forecast frames marked.
+- Location risk indicator rating the current position Low, Medium or High from
+  rainfall, wind, hazard zone containment or proximity, recent regional
+  earthquakes and nearby road closures, with an expandable list of exactly
+  which factors contributed and by how much.
+
+**Evacuation Mode**
+
+- Full-screen, high-contrast guidance with one very large instruction, distance
+  and time remaining, and a progress bar.
+- Voice instructions through the Web Speech API, with a mute control, which
+  degrade silently when a browser blocks or lacks speech synthesis.
+- Automatic re-routing when the user drifts off the planned line. The drift
+  threshold adapts to the reported GPS accuracy and requires three consecutive
+  confirmations, with a cooldown, so a single poor fix cannot cause a spurious
+  re-route.
+
+**Arrival QR codes**
+
+- Every shelter has a generated QR code encoding an absolute link to
+  `/checkin/:id` on the running deployment.
+- Scanning opens a confirmation screen where the arriving party size is set,
+  then records the arrival and increments occupancy for everyone in real time.
+- The endpoint refuses to exceed the recorded capacity, rejects closed
+  shelters, and is rate limited.
+- Codes are printable from the administrator dashboard for display at shelter
+  entrances.
+
+**Situation report**
+
+- An administrator can open a printable situation report covering the
+  operational overview, per-shelter status, active hazard zones, outstanding
+  SOS requests, community reports and recent alerts, laid out for A4 with a
+  dedicated print stylesheet.
+
+**Motion**
+
+- Framer Motion drives page transitions, the bottom sheet and modal entrances,
+  staggered shelter card reveals and the risk meter. The route line draws on
+  progressively, and hazard polygons breathe at a rate and depth set by their
+  severity, so the most dangerous zones draw the eye first. All of it respects
+  `prefers-reduced-motion`.
+
 **Platform**
 
 - Progressive web app via `vite-plugin-pwa`: installable manifest, generated
@@ -158,39 +244,49 @@ Base URL `http://localhost:4000`. Errors use `{ "error": string, "details": any 
 Routes marked "admin" need an `Authorization: Bearer <token>` header from a
 successful login with the administrator account.
 
-| Method | Path                     | Access | Purpose                                                   |
-| ------ | ------------------------ | ------ | --------------------------------------------------------- |
-| GET    | `/api/health`            | public | Uptime and connected client count                         |
-| POST   | `/api/auth/login`        | public | Exchange email and password for a 12 hour JWT             |
-| GET    | `/api/auth/me`           | token  | Current user profile                                      |
-| GET    | `/api/shelters`          | public | All shelters                                              |
-| GET    | `/api/shelters/nearest`  | public | Ranked shelters, `lat`, `lng`, `disaster`, `limit`        |
-| POST   | `/api/shelters`          | admin  | Create a shelter                                          |
-| PATCH  | `/api/shelters/:id`      | admin  | Update `occupied`, `is_open` or `capacity`                |
-| DELETE | `/api/shelters/:id`      | admin  | Remove a shelter                                          |
-| GET    | `/api/hazards`           | public | Hazard zones, optional `type` filter                      |
-| POST   | `/api/hazards`           | admin  | Create a hazard zone                                      |
-| PATCH  | `/api/hazards/:id`       | admin  | Rename, re-shape, change severity or toggle active        |
-| DELETE | `/api/hazards/:id`       | admin  | Remove a hazard zone                                      |
-| POST   | `/api/sos`               | public | Raise an SOS, rate limited to 10 per minute               |
-| GET    | `/api/sos`               | admin  | List SOS events, optional `status` filter                 |
-| PATCH  | `/api/sos/:id`           | admin  | Set status to acknowledged or resolved                    |
-| GET    | `/api/reports`           | public | Community reports, optional `status` filter               |
-| POST   | `/api/reports`           | public | Submit a report, rate limited to 20 per minute            |
-| POST   | `/api/reports/:id/vote`  | public | Vote `up` or `down`, auto-verifies at 3 net confirmations |
-| PATCH  | `/api/reports/:id`       | admin  | Verify or reject a report                                 |
-| GET    | `/api/checkins`          | public | Recent check-ins, optional `name` search                  |
-| POST   | `/api/checkins`          | public | Record an "I am safe" check-in                            |
-| GET    | `/api/alerts`            | public | Alert history, newest first                               |
-| POST   | `/api/alerts`            | admin  | Publish an alert and broadcast it                         |
-| POST   | `/api/alerts/simulate`   | admin  | Run the demonstration disaster scenario                   |
-| GET    | `/api/contacts`          | public | Official emergency numbers                                |
-| GET    | `/api/live/earthquakes`  | public | USGS feed, filtered to the region, cached 5 minutes       |
-| GET    | `/api/live/weather`      | public | Open-Meteo forecast plus derived flood risk, `lat`, `lng` |
-| GET    | `/api/analytics/summary` | admin  | Totals, occupancy, SOS and report aggregates              |
+| Method | Path                             | Access | Purpose                                                   |
+| ------ | -------------------------------- | ------ | --------------------------------------------------------- |
+| GET    | `/api/health`                    | public | Uptime and connected client count                         |
+| POST   | `/api/auth/login`                | public | Exchange email and password for a 12 hour JWT             |
+| GET    | `/api/auth/me`                   | token  | Current user profile                                      |
+| GET    | `/api/shelters`                  | public | All shelters                                              |
+| GET    | `/api/shelters/nearest`          | public | Ranked shelters, `lat`, `lng`, `disaster`, `limit`        |
+| POST   | `/api/shelters`                  | admin  | Create a shelter                                          |
+| PATCH  | `/api/shelters/:id`              | admin  | Update `occupied`, `is_open` or `capacity`                |
+| DELETE | `/api/shelters/:id`              | admin  | Remove a shelter                                          |
+| GET    | `/api/hazards`                   | public | Hazard zones, optional `type` filter                      |
+| POST   | `/api/hazards`                   | admin  | Create a hazard zone                                      |
+| PATCH  | `/api/hazards/:id`               | admin  | Rename, re-shape, change severity or toggle active        |
+| DELETE | `/api/hazards/:id`               | admin  | Remove a hazard zone                                      |
+| POST   | `/api/sos`                       | public | Raise an SOS, rate limited to 10 per minute               |
+| GET    | `/api/sos`                       | admin  | List SOS events, optional `status` filter                 |
+| PATCH  | `/api/sos/:id`                   | admin  | Set status to acknowledged or resolved                    |
+| GET    | `/api/reports`                   | public | Community reports, optional `status` filter               |
+| POST   | `/api/reports`                   | public | Submit a report, rate limited to 20 per minute            |
+| POST   | `/api/reports/:id/vote`          | public | Vote `up` or `down`, auto-verifies at 3 net confirmations |
+| PATCH  | `/api/reports/:id`               | admin  | Verify or reject a report                                 |
+| GET    | `/api/checkins`                  | public | Recent check-ins, optional `name` search                  |
+| POST   | `/api/checkins`                  | public | Record an "I am safe" check-in                            |
+| GET    | `/api/alerts`                    | public | Alert history, newest first                               |
+| POST   | `/api/alerts`                    | admin  | Publish an alert and broadcast it                         |
+| POST   | `/api/alerts/simulate`           | admin  | Run the demonstration disaster scenario                   |
+| GET    | `/api/contacts`                  | public | Official emergency numbers                                |
+| GET    | `/api/live/earthquakes`          | public | USGS feed, filtered to the region, cached 5 minutes       |
+| GET    | `/api/live/weather`              | public | Open-Meteo forecast plus derived flood risk, `lat`, `lng` |
+| GET    | `/api/live/radar`                | public | RainViewer frame index and tile template, cached 2 min    |
+| POST   | `/api/shelters/:id/arrive`       | public | Records a QR arrival and increments occupancy             |
+| GET    | `/api/traffic/status`            | public | Whether a traffic key is configured, plus tile template   |
+| GET    | `/api/traffic/incidents`         | public | Incidents in `bbox=minLon,minLat,maxLon,maxLat`           |
+| POST   | `/api/traffic/route`             | public | Traffic-aware routes with delay and alternatives          |
+| GET    | `/api/traffic/tile/:z/:x/:y.png` | public | Flow tile proxy, keeps the key server-side                |
+| GET    | `/api/analytics/summary`         | admin  | Totals, occupancy, SOS and report aggregates              |
 
-Both live endpoints cache for five minutes and fall back to the last known good
-response, flagged with `stale: true`, if the upstream service is unreachable.
+The weather and earthquake endpoints cache for five minutes, the radar index
+for two, and the traffic endpoints for ninety seconds. All of them fall back to
+the last known good response, flagged with `stale: true` or `fallback: true`,
+when the upstream service is unreachable. The tile proxy returns 204 rather
+than an error when no key is configured, so Leaflet draws nothing instead of
+logging a stream of failed image requests.
 
 ## Architecture
 
@@ -302,6 +398,22 @@ duplicates rows nor overwrites later administrator edits.
     offline chip, that the shelter list still ranks from cached data, and that
     an SOS raised while offline is queued and sent when the connection returns.
 
+If you have longer, the strongest additions to show are:
+
+- **Traffic and radar.** Use the two buttons on the left of the map to switch on
+  the traffic flow layer and the rain radar. Open "Show live data" for the
+  legend, the incident and closure counts, and the location risk rating.
+  Expand the risk card to show exactly which factors produced the rating.
+- **Evacuation Mode.** After planning a route, press "Start evacuation mode" for
+  the full-screen large-text guidance with voice instructions. Walking away
+  from the route, or using the browser device tools to move the simulated
+  position, triggers an automatic recalculation.
+- **QR arrival check-in.** In the dashboard open "Arrival QR codes", scan one
+  with a phone, confirm the party size, and show the occupancy and the shelter
+  marker colour updating live on the map in another window.
+- **Situation report.** Press "Export situation report" in the dashboard and
+  then print to PDF to show the printable handout.
+
 For the fullest demonstration, keep two windows open side by side: a normal
 window as the resident and a second window signed in as the administrator.
 
@@ -348,7 +460,7 @@ disaster-app/
       middleware/         auth.js validate.js errorHandler.js
       routes/             auth shelters hazards sos reports
                           checkins alerts contacts live analytics
-      services/           ranking.js geo.js liveFeeds.js
+      services/           ranking.js geo.js liveFeeds.js traffic.js
   client/
     vite.config.js        dev proxy and PWA configuration
     tailwind.config.js    navy, danger, safe and warn colour system
@@ -361,8 +473,8 @@ disaster-app/
                           SosButton AlertBanner RoutePanel StatusChips
                           DisasterChips SafetyTipsSheet LiveDataCards
                           LocationGate ProtectedRoute Toast Skeleton
-      lib/                ranking geo routing alarm storage time
-                          safetyTips constants
+      lib/                ranking geo hazards routing traffic risk speech
+                          alarm storage time safetyTips constants
 ```
 
 ## Configuration
@@ -373,7 +485,12 @@ disaster-app/
 PORT=4000
 JWT_SECRET=change-me-in-production-disaster-app-dev-secret
 CLIENT_ORIGIN=http://localhost:5173
+TOMTOM_API_KEY=
+TOMTOM_FLOW_STYLE=relative
 ```
+
+`TOMTOM_API_KEY` is optional. `server/.env` is gitignored, so a real key never
+enters version control.
 
 The JWT secret falls back to a development default if the variable is absent, so
 the project runs with no manual configuration. Set a real secret before putting
@@ -383,26 +500,37 @@ this anywhere public.
 
 The following were executed and pass:
 
-- `npm run verify`: 69 source files parse, 167 relative imports resolve and
-  match their target exports, no unused imports, no emoji in 77 text files,
-  every dependency pinned to the exact required version, all 60 required files
-  present.
-- `npm run test:logic`: 15 checks covering Haversine distance, point in polygon
-  across geometry wrapper types, the exclusion rules for closed, full and
-  hazard-bound shelters, score bounds and breakdown arithmetic, ranking order
-  and limits, malformed input handling, and the integrity of all 20 shelters
-  and 12 hazard polygons.
+- `npm run verify`: 82 source files parse, 200 relative imports resolve and
+  match their target exports, no unused imports, 237 translation keys match
+  across English, Tamil and Hindi, no emoji in 90 text files, every dependency
+  pinned to the exact required version, all required files present.
+- `npm run test:logic`: 40 checks. These cover Haversine distance, point in
+  polygon across geometry wrapper types, the exclusion rules for closed, full
+  and hazard-bound shelters, score bounds and breakdown arithmetic, ranking
+  order and limits, the integrity of all 20 shelters and 12 hazard polygons,
+  exact agreement between the server and offline rankings, the TomTom incident
+  and route parsers against payloads matching the documented response shapes,
+  graceful degradation of every traffic call when no key is set, determinism
+  and movement of the simulated traffic layer, off-route deviation and progress
+  tracking, and the risk rating bands with their explanations.
 - `npm run check:sql`: 19 checks against SQLite 3.40.0. The schema DDL executes,
   8 tables and 12 indexes are created, the full seed inserts cleanly, all five
   CHECK constraints reject invalid data, the unique email constraint holds, the
-  seed is idempotent across repeated runs, all 51 prepared statements compile,
+  seed is idempotent across repeated runs, every prepared statement compiles,
   and the analytics aggregates return correct figures.
 - `npm run check:imports`: confirms the module evaluation order that makes
   applying the schema inside `db.js` correct.
 
-Not yet executed: `npm install`, `npm run dev`, `npm run build` and live
-endpoint calls. These need the npm registry, so run them locally to confirm the
-dependency install and the production build on your machine.
+Not executed, because this environment has no access to the npm registry or to
+third-party APIs:
+
+- `npm install`, `npm run dev` and `npm run build`.
+- Live calls to TomTom, RainViewer, Open-Meteo, USGS and OSRM. The request
+  construction and response parsing are covered by unit tests built from the
+  documented response shapes, but the live responses themselves are unverified.
+  If a provider has changed its response format, the parser is the place to
+  look, and every one of these calls already degrades to a labelled fallback
+  rather than failing hard.
 
 ## Notes and known limits
 

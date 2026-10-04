@@ -191,3 +191,160 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ------------------------------------------------ hazard zone pulsing */
+
+/*
+  Hazard polygons breathe so active zones draw the eye. Severity 3 pulses
+  fastest and deepest, severity 1 is a slow, subtle shift. Leaflet renders
+  polygons as SVG paths, so the animation targets fill and stroke opacity.
+*/
+@keyframes hazard-breathe {
+  0%,
+  100% {
+    fill-opacity: var(--hazard-min, 0.14);
+    stroke-opacity: 0.75;
+  }
+  50% {
+    fill-opacity: var(--hazard-max, 0.34);
+    stroke-opacity: 1;
+  }
+}
+
+.hazard-pulse {
+  animation: hazard-breathe var(--hazard-duration, 4s) ease-in-out infinite;
+}
+
+.hazard-pulse-1 {
+  --hazard-duration: 5.5s;
+  --hazard-min: 0.1;
+  --hazard-max: 0.22;
+}
+
+.hazard-pulse-2 {
+  --hazard-duration: 3.8s;
+  --hazard-min: 0.14;
+  --hazard-max: 0.32;
+}
+
+.hazard-pulse-3 {
+  --hazard-duration: 2.2s;
+  --hazard-min: 0.18;
+  --hazard-max: 0.44;
+}
+
+/* ------------------------------------------------------- print layout */
+
+/*
+  Printable situation report. Interface chrome is removed, colours are
+  flattened to ink, and tables are allowed to break across pages cleanly.
+*/
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  header.glass-header,
+  nav,
+  .print\:hidden,
+  .leaflet-container {
+    display: none !important;
+  }
+
+  main {
+    overflow: visible !important;
+  }
+
+  .card,
+  .card-muted {
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .report-page {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .report-header {
+    border-bottom: 2px solid #000000;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+  }
+
+  .report-section {
+    break-inside: avoid;
+    margin-bottom: 12px;
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+  }
+
+  .report-table th,
+  .report-table td {
+    border: 1px solid #94a3b8;
+    padding: 3px 5px;
+    text-align: left;
+  }
+
+  .report-table thead {
+    display: table-header-group;
+  }
+
+  .report-table tr {
+    break-inside: avoid;
+  }
+
+  .report-footer {
+    border-top: 1px solid #94a3b8;
+    padding-top: 6px;
+    margin-top: 10px;
+  }
+
+  .qr-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* On screen the report tables still need basic structure. */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.report-table th,
+.report-table td {
+  border: 1px solid rgb(226 232 243);
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.dark .report-table th,
+.dark .report-table td {
+  border-color: rgb(35 49 80);
+}
+
+.report-table thead th {
+  background: rgb(242 245 250);
+  font-weight: 700;
+}
+
+.dark .report-table thead th {
+  background: rgb(16 28 51);
+}

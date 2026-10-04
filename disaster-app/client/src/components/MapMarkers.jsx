@@ -4,6 +4,7 @@
  * All markers use divIcon with inline SVG, which sidesteps the well known
  * Leaflet default-icon path problem in bundlers and keeps styling in one place.
  */
+import { useEffect, useRef, useState } from 'react';
 import { Circle, CircleMarker, Marker, Polygon, Polyline, Popup, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import { availability } from '../lib/ranking.js';
@@ -108,6 +109,10 @@ export function UserLocationMarker({ position }) {
 export function HazardLayer({ hazards }) {
   return hazards.flatMap((hazard) => {
     const color = SEVERITY_COLORS[hazard.severity] ?? '#DC2626';
+    // Higher severity pulses faster and more strongly, so the eye is drawn to
+    // the most dangerous zones first. The animation lives in index.css.
+    const pulseClass = `hazard-pulse hazard-pulse-${hazard.severity ?? 1}`;
+
     return hazardToPolygons(hazard).map((feature, index) => {
       // GeoJSON rings are [lng, lat]; Leaflet polygons need [lat, lng].
       const positions = feature.geometry.coordinates.map((ring) =>
@@ -117,6 +122,7 @@ export function HazardLayer({ hazards }) {
         <Polygon
           key={`hazard-${hazard.id}-${index}`}
           positions={positions}
+          className={pulseClass}
           pathOptions={{
             color,
             weight: 1.5,
@@ -183,17 +189,76 @@ export function EarthquakeMarkers({ events }) {
   });
 }
 
-export function RouteLine({ route }) {
-  if (!route || !Array.isArray(route.latLngs) || route.latLngs.length < 2) return null;
+/**
+ * Route line with a draw-on animation.
+ *
+ * The polyline is revealed progressively by appending vertices on each frame,
+ * which animates reliably across browsers and keeps Leaflet in charge of the
+ * projection. A dashed estimate is drawn immediately since it is only two
+ * points long.
+ */
+export function RouteLine({ route, animate = true }) {
+  const [revealed, setRevealed] = useState([]);
+  const frameRef = useRef(null);
+
+  const latLngs = Array.isArray(route?.latLngs) ? route.latLngs : [];
+  const signature = latLngs.length > 0 ? `${latLngs.length}-${latLngs[0]?.join(',')}` : '';
+
+  useEffect(() => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+
+    if (latLngs.length < 2) {
+      setRevealed([]);
+      return undefined;
+    }
+    if (!animate || route.estimated || latLngs.length <= 3) {
+      setRevealed(latLngs);
+      return undefined;
+    }
+
+    // Draw over roughly half a second regardless of how many vertices there are.
+    const totalFrames = 30;
+    const step = Math.max(1, Math.ceil(latLngs.length / totalFrames));
+    let drawn = step;
+    setRevealed(latLngs.slice(0, drawn));
+
+    const tick = () => {
+      drawn += step;
+      if (drawn >= latLngs.length) {
+        setRevealed(latLngs);
+        frameRef.current = null;
+        return;
+      }
+      setRevealed(latLngs.slice(0, drawn));
+      frameRef.current = requestAnimationFrame(tick);
+    };
+    frameRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    };
+    // signature changes whenever a different route is supplied.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, animate, route?.estimated]);
+
+  if (revealed.length < 2) return null;
+
+  const color = route.estimated ? '#64748B' : route.crossesHazard ? '#DC2626' : '#2563EB';
+
   return (
-    <Polyline
-      positions={route.latLngs}
-      pathOptions={{
-        color: route.estimated ? '#64748B' : route.crossesHazard ? '#DC2626' : '#2563EB',
-        weight: 5,
-        opacity: 0.9,
-        dashArray: route.estimated ? '8 8' : undefined
-      }}
-    />
+    <>
+      {/* A soft casing underneath makes the line readable over busy imagery. */}
+      <Polyline positions={revealed} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.55 }} />
+      <Polyline
+        positions={revealed}
+        pathOptions={{
+          color,
+          weight: 5,
+          opacity: 0.95,
+          dashArray: route.estimated ? '8 8' : undefined
+        }}
+      />
+    </>
   );
 }
