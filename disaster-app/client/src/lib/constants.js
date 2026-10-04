@@ -20,30 +20,45 @@ export const GPS_OPTIONS = {
   timeout: 15000
 };
 
+/**
+ * Base map layers.
+ *
+ * Both sources are keyless. The street tiles come from the OpenStreetMap
+ * standard layer; dark mode reuses the same tiles with a CSS filter rather than
+ * loading a second service, which keeps the full zoom range and avoids another
+ * provider dependency.
+ *
+ * The OpenStreetMap tile policy recommends not hardcoding the tile URL so the
+ * provider can be swapped without a code change, so the street URL can be
+ * overridden with VITE_STREET_TILE_URL in a .env file next to vite.config.js.
+ */
+const STREET_TILE_URL =
+  import.meta.env?.VITE_STREET_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+const SATELLITE_TILE_URL =
+  import.meta.env?.VITE_SATELLITE_TILE_URL ||
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
 export const BASE_LAYERS = {
   street: {
     id: 'street',
     label: 'Street',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    url: STREET_TILE_URL,
     attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 20
-  },
-  dark: {
-    id: 'dark',
-    label: 'Dark',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png',
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 20
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+    // Dark mode is produced by filtering these tiles, see index.css.
+    supportsDarkFilter: true
   },
   satellite: {
     id: 'satellite',
     label: 'Satellite',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    url: SATELLITE_TILE_URL,
     attribution:
       'Imagery &copy; <a href="https://www.esri.com">Esri</a>, Maxar, Earthstar Geographics',
-    maxZoom: 19
+    maxZoom: 19,
+    // Imagery must never be inverted.
+    supportsDarkFilter: false
   }
 };
 

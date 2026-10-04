@@ -66,7 +66,7 @@ self.addEventListener("activate", function (event) {
 
 function isTileRequest(url) {
   return (
-    url.indexOf("basemaps.cartocdn.com") !== -1 ||
+    url.indexOf("tile.openstreetmap.org") !== -1 ||
     url.indexOf("arcgisonline.com") !== -1 ||
     url.indexOf("server.arcgisonline.com") !== -1
   );

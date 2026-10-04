@@ -61,6 +61,25 @@ without the native `better-sqlite3` binding.
 To start over with a clean database, delete `server/data/app.db` and run
 `npm run seed`.
 
+## Map tiles
+
+Street tiles come from the OpenStreetMap standard layer and satellite imagery
+from Esri. Neither needs a key.
+
+The OpenStreetMap tile policy asks that the URL not be hardcoded, so you can
+point the map at a different provider without editing any code. Create
+`client/.env` and set either of:
+
+```
+VITE_STREET_TILE_URL=https://your-provider/{z}/{x}/{y}.png
+VITE_SATELLITE_TILE_URL=https://your-provider/{z}/{y}/{x}
+```
+
+The OpenStreetMap tile servers are donation funded and intended for modest
+use, which a college demonstration comfortably is. Anything with real traffic
+should move to a dedicated provider through the variables above and update the
+attribution string in `client/src/lib/constants.js` to match.
+
 ## Optional: live traffic
 
 Traffic works without any setup. With no key the app uses OSRM for routing and
@@ -106,10 +125,12 @@ The dashboard at `/admin` requires the administrator account.
 
 **Map and location**
 
-- Leaflet map with CartoDB Voyager (light), Dark Matter (dark mode) and Esri
-  World Imagery (satellite), switchable from a custom control, with correct
-  attribution. All markers are inline SVG `divIcon`s, which avoids the Leaflet
-  default marker path problem in bundlers.
+- Leaflet map with keyless OpenStreetMap street tiles and Esri World Imagery
+  satellite, switchable from a custom control, with correct attribution. Dark
+  mode recolours the street tiles in the browser with a CSS filter rather than
+  loading a second tile service, so there is no extra provider dependency and
+  the full zoom range is kept. All markers are inline SVG `divIcon`s, which
+  avoids the Leaflet default marker path problem in bundlers.
 - Live tracking via `watchPosition` with high accuracy: blue dot with a pulsing
   ring, an accuracy circle and a heading arrow when the device reports one.
 - Locate button, follow mode that disengages as soon as you pan the map, and a

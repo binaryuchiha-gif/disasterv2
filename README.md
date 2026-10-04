@@ -56,7 +56,8 @@ for the app itself.
 
 ## Feature list
 
-- Live map with CartoDB Voyager (light) and Dark Matter (dark mode) tiles,
+- Live map with keyless OpenStreetMap tiles (dark mode applied with a CSS
+  filter),
   plus an Esri World Imagery satellite toggle, all with attribution.
 - Custom SVG shelter markers colored by availability (green, amber, red).
 - Live GPS tracking with a pulsing blue dot, accuracy circle, heading

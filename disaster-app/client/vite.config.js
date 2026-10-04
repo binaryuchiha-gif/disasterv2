@@ -37,11 +37,13 @@ export default defineConfig({
         navigateFallback: '/index.html',
         runtimeCaching: [
           {
-            // Map tiles: cache first with an explicit ceiling so storage stays bounded.
-            urlPattern: /^https:\/\/[a-d]?\.?basemaps\.cartocdn\.com\/.*/i,
+            // Street tiles: cache first with an explicit ceiling so storage
+            // stays bounded. Covers the OpenStreetMap hostname with or without
+            // the legacy a/b/c subdomains.
+            urlPattern: /^https:\/\/([a-c]\.)?tile\.openstreetmap\.org\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'map-tiles-carto',
+              cacheName: 'map-tiles-street',
               expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 14 },
               cacheableResponse: { statuses: [0, 200] }
             }

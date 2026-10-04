@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
   MapContainer,
+  Pane,
   ScaleControl,
   TileLayer,
   ZoomControl,
@@ -118,11 +119,14 @@ export default function MapView({
   const startWatching = useStore((state) => state.startWatching);
   const pushToast = useStore((state) => state.pushToast);
 
-  // Dark mode automatically swaps the street basemap for the dark variant.
-  const activeLayer = useMemo(() => {
-    if (baseLayer === 'satellite') return BASE_LAYERS.satellite;
-    return theme === 'dark' ? BASE_LAYERS.dark : BASE_LAYERS.street;
-  }, [baseLayer, theme]);
+  const activeLayer = useMemo(
+    () => (baseLayer === 'satellite' ? BASE_LAYERS.satellite : BASE_LAYERS.street),
+    [baseLayer]
+  );
+
+  // In dark mode the street tiles are filtered to a dark palette. Imagery is
+  // left untouched, because inverting a photograph looks wrong.
+  const darkBasemap = theme === 'dark' && activeLayer.supportsDarkFilter;
 
   const handleLocateMe = () => {
     if (position) {
@@ -142,14 +146,22 @@ export default function MapView({
         center={position ? [position.lat, position.lng] : [CHENNAI.lat, CHENNAI.lng]}
         zoom={12}
         zoomControl={false}
-        className="h-full w-full"
+        className={`h-full w-full${darkBasemap ? ' basemap-is-dark' : ''}`}
       >
-        <TileLayer
-          key={activeLayer.id}
-          url={activeLayer.url}
-          attribution={activeLayer.attribution}
-          maxZoom={activeLayer.maxZoom}
-        />
+        {/*
+          The base map lives in its own pane so dark mode can filter it without
+          touching the radar or traffic tiles. Leaflet names the element
+          leaflet-basemap-pane, which the stylesheet targets. The z-index sits
+          just below the default tile pane at 200.
+        */}
+        <Pane name="basemap" style={{ zIndex: 190 }}>
+          <TileLayer
+            key={activeLayer.id}
+            url={activeLayer.url}
+            attribution={activeLayer.attribution}
+            maxZoom={activeLayer.maxZoom}
+          />
+        </Pane>
         <ZoomControl position="bottomright" />
         <ScaleControl position="bottomleft" metric imperial={false} />
 

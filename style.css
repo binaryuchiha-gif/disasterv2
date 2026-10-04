@@ -1137,3 +1137,17 @@ h1, h2, h3, h4, p { margin: 0; }
   .brand-name { font-size: 13px; }
   .sos-btn { width: 68px; height: 68px; }
 }
+
+/* =========================================================
+   Dark mode base map tiles
+
+   Dark mode reuses the standard street tiles and recolours them in the
+   browser, so no second tile provider is needed. Inverting alone would turn
+   the map blue, so the hue is rotated a half turn, then contrast and
+   saturation are eased off so labels stay readable and the coloured markers
+   and hazard polygons still stand out on top.
+========================================================= */
+
+.basemap-is-dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.72);
+}
