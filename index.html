@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Disaster Management App</title>
+<meta name="description" content="Disaster preparedness, shelter finder, and emergency response demo application" />
+<meta name="theme-color" content="#0b1222" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23e5342c'/%3E%3Cpath d='M12 5l7 13H5z' fill='%23fff'/%3E%3C/svg%3E" />
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<!-- App styles -->
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- =========================================================
+     LOCATION PERMISSION OVERLAY
+========================================================= -->
+<div id="locationPermissionOverlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="locationOverlayTitle">
+  <div class="overlay-card">
+    <div class="overlay-icon"><i data-lucide="map-pin" aria-hidden="true"></i></div>
+    <h2 id="locationOverlayTitle" data-i18n="loc_title">Find shelters near you</h2>
+    <p data-i18n="loc_body">This app uses your location to show nearby shelters and calculate the safest route. Location is only used on this device and is not sent to any server.</p>
+    <button id="enableLocationBtn" class="btn btn-primary btn-block" data-i18n="loc_enable">Enable location</button>
+    <button id="useDemoLocationBtn" class="btn btn-ghost btn-block" data-i18n="loc_demo">Use demo location (Chennai)</button>
+  </div>
+</div>
+
+<!-- =========================================================
+     APP SHELL
+========================================================= -->
+<div id="app" class="app">
+
+  <!-- HEADER -->
+  <header id="appHeader" class="app-header">
+    <div class="header-left">
+      <span class="brand-icon"><i data-lucide="shield-alert" aria-hidden="true"></i></span>
+      <span class="brand-name" data-i18n="brand">Disaster Management</span>
+    </div>
+    <div class="header-right">
+      <span id="onlineChip" class="chip chip-neutral"><i data-lucide="wifi" aria-hidden="true"></i><span id="onlineChipText" data-i18n="status_online">Online</span></span>
+      <span id="gpsChip" class="chip chip-neutral"><i data-lucide="satellite" aria-hidden="true"></i><span id="gpsChipText" data-i18n="gps_searching">GPS: Searching</span></span>
+      <select id="langSelect" class="lang-select" aria-label="Language">
+        <option value="en">EN</option>
+        <option value="ta">TA</option>
+        <option value="hi">HI</option>
+      </select>
+      <button id="darkModeToggle" class="icon-btn" aria-label="Toggle dark mode">
+        <i data-lucide="moon" aria-hidden="true"></i>
+      </button>
+      <button id="menuBtn" class="icon-btn" aria-label="Open menu" aria-haspopup="true" aria-expanded="false">
+        <i data-lucide="more-vertical" aria-hidden="true"></i>
+      </button>
+      <div id="menuDropdown" class="menu-dropdown hidden" role="menu">
+        <button id="simulateDisasterBtn" class="menu-item" role="menuitem">
+          <i data-lucide="siren" aria-hidden="true"></i>
+          <span data-i18n="menu_simulate">Simulate disaster</span>
+        </button>
+        <button id="checkInMenuBtn" class="menu-item" role="menuitem">
+          <i data-lucide="check-circle" aria-hidden="true"></i>
+          <span data-i18n="menu_checkin">Family check-in</span>
+        </button>
+        <button id="clearDataBtn" class="menu-item" role="menuitem">
+          <i data-lucide="trash-2" aria-hidden="true"></i>
+          <span data-i18n="menu_cleardata">Clear local data</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ALERT BANNER -->
+  <div id="alertBanner" class="alert-banner hidden" role="alert">
+    <i data-lucide="alert-triangle" aria-hidden="true"></i>
+    <span id="alertBannerText">No active alerts</span>
+    <button id="alertBannerClose" class="alert-banner-close" aria-label="Dismiss alert">
+      <i data-lucide="x" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <!-- DISASTER TYPE CHIPS -->
+  <div id="disasterChips" class="disaster-chips">
+    <button class="disaster-chip" data-disaster="flood" aria-pressed="false">
+      <i data-lucide="waves" aria-hidden="true"></i><span data-i18n="disaster_flood">Flood</span>
+    </button>
+    <button class="disaster-chip" data-disaster="cyclone" aria-pressed="false">
+      <i data-lucide="wind" aria-hidden="true"></i><span data-i18n="disaster_cyclone">Cyclone</span>
+    </button>
+    <button class="disaster-chip" data-disaster="earthquake" aria-pressed="false">
+      <i data-lucide="activity" aria-hidden="true"></i><span data-i18n="disaster_earthquake">Earthquake</span>
+    </button>
+    <button class="disaster-chip" data-disaster="fire" aria-pressed="false">
+      <i data-lucide="flame" aria-hidden="true"></i><span data-i18n="disaster_fire">Fire</span>
+    </button>
+    <button class="disaster-chip" data-disaster="tsunami" aria-pressed="false">
+      <i data-lucide="waves" aria-hidden="true"></i><span data-i18n="disaster_tsunami">Tsunami</span>
+    </button>
+  </div>
+
+  <!-- MAIN VIEWS -->
+  <main id="mainContent" class="main-content">
+
+    <!-- MAP VIEW -->
+    <section id="view-map" class="view view-map active-view">
+      <div id="mapSkeleton" class="skeleton map-skeleton"></div>
+      <div id="map" class="map-container"></div>
+
+      <!-- Custom layer toggle -->
+      <button id="layerToggleBtn" class="map-control layer-toggle-btn" aria-label="Toggle satellite view">
+        <i data-lucide="layers" aria-hidden="true"></i>
+        <span id="layerToggleText" data-i18n="layer_satellite">Satellite</span>
+      </button>
+
+      <!-- Follow mode -->
+      <button id="followModeBtn" class="map-control follow-btn" aria-pressed="false" aria-label="Toggle follow mode">
+        <i data-lucide="navigation" aria-hidden="true"></i>
+      </button>
+
+      <!-- Locate me -->
+      <button id="locateMeBtn" class="map-control locate-btn" aria-label="Locate me">
+        <i data-lucide="crosshair" aria-hidden="true"></i>
+      </button>
+
+      <!-- Find safest shelter -->
+      <button id="findSafestShelterBtn" class="btn btn-primary find-shelter-btn">
+        <i data-lucide="search" aria-hidden="true"></i>
+        <span data-i18n="find_safest">Find safest shelter</span>
+      </button>
+
+      <!-- SOS button -->
+      <button id="sosBtn" class="sos-btn" aria-label="Hold for 2 seconds to send SOS">
+        <svg class="sos-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="sos-ring-bg" cx="50" cy="50" r="46"></circle>
+          <circle id="sosRingProgress" class="sos-ring-progress" cx="50" cy="50" r="46"></circle>
+        </svg>
+        <span class="sos-label" data-i18n="sos">SOS</span>
+      </button>
+
+      <!-- Shelter results bottom sheet / side panel -->
+      <div id="shelterSheet" class="sheet" aria-hidden="true">
+        <div id="shelterSheetHandle" class="sheet-handle"></div>
+        <div class="sheet-header">
+          <h3 data-i18n="nearest_shelters">Nearest shelters</h3>
+          <button id="shelterSheetClose" class="icon-btn" aria-label="Close">
+            <i data-lucide="x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div id="shelterSheetBody" class="sheet-body">
+          <div id="shelterResultsList" class="shelter-results-list"></div>
+          <div id="routeInfoPanel" class="route-info-panel hidden">
+            <div class="route-info-header">
+              <h4 id="routeToName" data-i18n="route_title">Route</h4>
+              <span id="routeBadge" class="badge badge-neutral"></span>
+            </div>
+            <div id="routeSummary" class="route-summary"></div>
+            <a id="openInGoogleMapsLink" class="btn btn-ghost btn-block" target="_blank" rel="noopener">
+              <i data-lucide="external-link" aria-hidden="true"></i>
+              <span data-i18n="open_google_maps">Open in Google Maps</span>
+            </a>
+            <ol id="routeSteps" class="route-steps"></ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SAFETY TIPS SHEET -->
+    <div id="safetyTipsSheet" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="safetyTipsTitle">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="safetyTipsTitle">Safety tips</h3>
+          <button id="safetyTipsClose" class="icon-btn" aria-label="Close">
+            <i data-lucide="x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="tips-column">
+            <h4 class="tips-heading tips-do"><i data-lucide="check" aria-hidden="true"></i><span data-i18n="tips_do">Do</span></h4>
+            <ul id="safetyTipsDos" class="tips-list"></ul>
+          </div>
+          <div class="tips-column">
+            <h4 class="tips-heading tips-dont"><i data-lucide="x" aria-hidden="true"></i><span data-i18n="tips_dont">Do not</span></h4>
+            <ul id="safetyTipsDonts" class="tips-list"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHELTERS VIEW -->
+    <section id="view-shelters" class="view view-shelters">
+      <h2 class="view-title" data-i18n="nav_shelters">Shelters</h2>
+      <div id="shelterListFull" class="shelter-results-list shelter-list-full"></div>
+    </section>
+
+    <!-- CONTACTS VIEW -->
+    <section id="view-contacts" class="view view-contacts">
+      <h2 class="view-title" data-i18n="nav_contacts">Contacts</h2>
+
+      <h3 class="section-subtitle" data-i18n="contacts_emergency">Emergency numbers (India)</h3>
+      <div id="emergencyContactsList" class="contact-list"></div>
+
+      <h3 class="section-subtitle" data-i18n="contacts_personal">Your contacts</h3>
+      <div id="userContactsList" class="contact-list"></div>
+
+      <form id="addContactForm" class="add-contact-form">
+        <input id="contactNameInput" type="text" placeholder="Name" data-i18n-placeholder="contact_name_placeholder" required />
+        <input id="contactPhoneInput" type="tel" placeholder="Phone number" data-i18n-placeholder="contact_phone_placeholder" required />
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="user-plus" aria-hidden="true"></i>
+          <span data-i18n="contacts_add">Add contact</span>
+        </button>
+      </form>
+
+      <h3 class="section-subtitle" data-i18n="checkin_title">Family check-in</h3>
+      <p class="section-hint" data-i18n="checkin_hint">Let your family know you are safe with your current location and time.</p>
+      <button id="checkInBtn" class="btn btn-primary btn-block">
+        <i data-lucide="heart-handshake" aria-hidden="true"></i>
+        <span data-i18n="checkin_button">I am safe</span>
+      </button>
+    </section>
+
+    <!-- REPORT VIEW -->
+    <section id="view-report" class="view view-report">
+      <h2 class="view-title" data-i18n="nav_report">Report</h2>
+      <p class="section-hint" data-i18n="report_hint">Report a situation to help others nearby. Reports are stored on this device for the demo.</p>
+
+      <div id="reportTypeButtons" class="report-type-grid">
+        <button class="report-type-btn" data-report="road_blocked">
+          <i data-lucide="construction" aria-hidden="true"></i>
+          <span data-i18n="report_road_blocked">Road blocked</span>
+        </button>
+        <button class="report-type-btn" data-report="flooded_area">
+          <i data-lucide="droplets" aria-hidden="true"></i>
+          <span data-i18n="report_flooded">Flooded area</span>
+        </button>
+        <button class="report-type-btn" data-report="medical_help">
+          <i data-lucide="cross" aria-hidden="true"></i>
+          <span data-i18n="report_medical">Medical help needed</span>
+        </button>
+        <button class="report-type-btn" data-report="food_water">
+          <i data-lucide="utensils" aria-hidden="true"></i>
+          <span data-i18n="report_food_water">Food or water needed</span>
+        </button>
+        <button class="report-type-btn" data-report="person_missing">
+          <i data-lucide="user-search" aria-hidden="true"></i>
+          <span data-i18n="report_missing">Person missing</span>
+        </button>
+      </div>
+
+      <h3 class="section-subtitle" data-i18n="report_recent">Recent reports</h3>
+      <div id="reportList" class="report-list"></div>
+    </section>
+
+    <!-- ADMIN VIEW -->
+    <section id="view-admin" class="view view-admin">
+      <h2 class="view-title" data-i18n="nav_admin">Admin</h2>
+      <p class="section-hint" data-i18n="admin_hint">Demo mode admin panel. No login required. Changes apply immediately to the user view.</p>
+
+      <button id="adminAddShelterBtn" class="btn btn-ghost btn-block">
+        <i data-lucide="map-pin-plus" aria-hidden="true"></i>
+        <span data-i18n="admin_add_shelter">Tap the map to add a shelter</span>
+      </button>
+
+      <div id="adminShelterList" class="admin-shelter-list"></div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAVIGATION -->
+  <nav id="bottomNav" class="bottom-nav" aria-label="Main navigation">
+    <button class="nav-btn active" data-view="map" aria-label="Map">
+      <i data-lucide="map" aria-hidden="true"></i>
+      <span data-i18n="nav_map">Map</span>
+    </button>
+    <button class="nav-btn" data-view="shelters" aria-label="Shelters">
+      <i data-lucide="home" aria-hidden="true"></i>
+      <span data-i18n="nav_shelters">Shelters</span>
+    </button>
+    <button class="nav-btn" data-view="contacts" aria-label="Contacts">
+      <i data-lucide="phone" aria-hidden="true"></i>
+      <span data-i18n="nav_contacts">Contacts</span>
+    </button>
+    <button class="nav-btn" data-view="report" aria-label="Report">
+      <i data-lucide="flag" aria-hidden="true"></i>
+      <span data-i18n="nav_report">Report</span>
+    </button>
+    <button class="nav-btn" data-view="admin" aria-label="Admin">
+      <i data-lucide="settings" aria-hidden="true"></i>
+      <span data-i18n="nav_admin">Admin</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- SOS RESULT MODAL -->
+<div id="sosResultModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="sosResultTitle">
+  <div class="modal-card sos-modal-card">
+    <div class="modal-header">
+      <h3 id="sosResultTitle" data-i18n="sos_sent_title">SOS signal ready</h3>
+      <button id="sosResultClose" class="icon-btn" aria-label="Close">
+        <i data-lucide="x" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="modal-body sos-modal-body">
+      <p id="sosCoords" class="sos-coords"></p>
+      <a id="sosMapLink" class="btn btn-ghost btn-block" target="_blank" rel="noopener">
+        <i data-lucide="map-pin" aria-hidden="true"></i>
+        <span data-i18n="sos_view_map">View on map</span>
+      </a>
+      <div class="sos-action-grid">
+        <button id="sosWhatsappBtn" class="btn btn-secondary">
+          <i data-lucide="message-circle" aria-hidden="true"></i>
+          <span data-i18n="sos_whatsapp">WhatsApp</span>
+        </button>
+        <button id="sosSmsBtn" class="btn btn-secondary">
+          <i data-lucide="message-square" aria-hidden="true"></i>
+          <span data-i18n="sos_sms">SMS</span>
+        </button>
+        <button id="sosCopyBtn" class="btn btn-secondary">
+          <i data-lucide="copy" aria-hidden="true"></i>
+          <span data-i18n="sos_copy">Copy</span>
+        </button>
+        <button id="sosShareBtn" class="btn btn-secondary">
+          <i data-lucide="share-2" aria-hidden="true"></i>
+          <span data-i18n="sos_share">Share</span>
+        </button>
+      </div>
+      <h4 class="section-subtitle" data-i18n="sos_history">SOS history</h4>
+      <div id="sosHistoryList" class="sos-history-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHECK-IN RESULT MODAL -->
+<div id="checkInResultModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkInResultTitle">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="checkInResultTitle" data-i18n="checkin_result_title">Check-in message ready</h3>
+      <button id="checkInResultClose" class="icon-btn" aria-label="Close">
+        <i data-lucide="x" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p id="checkInMessage" class="checkin-message"></p>
+      <div class="sos-action-grid">
+        <button id="checkInWhatsappBtn" class="btn btn-secondary">
+          <i data-lucide="message-circle" aria-hidden="true"></i>
+          <span data-i18n="sos_whatsapp">WhatsApp</span>
+        </button>
+        <button id="checkInSmsBtn" class="btn btn-secondary">
+          <i data-lucide="message-square" aria-hidden="true"></i>
+          <span data-i18n="sos_sms">SMS</span>
+        </button>
+        <button id="checkInCopyBtn" class="btn btn-secondary">
+          <i data-lucide="copy" aria-hidden="true"></i>
+          <span data-i18n="sos_copy">Copy</span>
+        </button>
+        <button id="checkInShareBtn" class="btn btn-secondary">
+          <i data-lucide="share-2" aria-hidden="true"></i>
+          <span data-i18n="sos_share">Share</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="shelters.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
